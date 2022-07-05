@@ -25,28 +25,88 @@ public class Renderer {
 
     public void renderFrame(BufferedImage frame) throws IOException {
 
-
         int[][] imagePixels = new int[frame.getHeight()][frame.getWidth()];
+
         for (int j = 0; j < imagePixels.length; j++) {
             for (int i = 0; i < imagePixels[0].length; i++) {
 
+                //Retrieve Color for Pixel
                 int[] rgb = getRGBfromBufferImage(frame, i, j);
 
+                //Grayscale Said Pixel
                 int grayscaled = RGBtoGrayscale(rgb);
                 rgb[0] = grayscaled;
                 rgb[1] = grayscaled;
                 rgb[2] = grayscaled;
 
+                //"Standardize" Value of Pixel so range is 0-1
+                double[] rgb_standardized = {rgb[0] / 255.0, rgb[0] / 255.0, rgb[0] / 255.0};
+
+                //Add Contrast
+                double CONSTRAST_CONSTANT = 1;
+                rgb_standardized[0] = Math.pow(rgb_standardized[0], CONSTRAST_CONSTANT);
+                rgb_standardized[1] = Math.pow(rgb_standardized[1], CONSTRAST_CONSTANT);
+                rgb_standardized[2] = Math.pow(rgb_standardized[2], CONSTRAST_CONSTANT);
+
+                //Convert Back to Normal Values
+                rgb[0] = (int)(rgb_standardized[0] * 255);
+                rgb[1] = (int)(rgb_standardized[1] * 255);
+                rgb[2] = (int)(rgb_standardized[2] * 255);
+
+                //only set to one value since all RGB values are the same
+                imagePixels[i][j] = rgb[0];
+
                 //System.out.println("Red: " + rgb[0] + "  Green: " + rgb[1] + "  Blue: " + rgb[2]);
-
-                frame.setRGB(i, j, toARGB(255, rgb));
-
+                //frame.setRGB(i, j, toARGB(255, rgb));
 
             }
         }
 
         App.display(frame);
 
+    }
+
+    //grid size can only be an odd number
+    private static int[][] blur(int[][] pixels, int grid_size) {
+
+        //make sure grid size is not even and not nonesense (must be odd so that middle pixel is in center
+        if (grid_size <= 0) grid_size = 1;
+        else if (grid_size % 2 == 0) grid_size += 1;
+
+        //create a copy
+        int[][] pixels_copy = new int[pixels.length][pixels[0].length];
+        for (int j = 0; j < pixels.length; j++) {
+            for (int i = 0; i < pixels[0].length; i++) {
+                pixels_copy[j][i] = pixels[j][i];
+            }
+        }
+
+        //blur
+        for (int j = 0; j < pixels.length; j++) {
+            for (int i = 0; i < pixels[0].length; i++) {
+
+                int average = 0;
+                for (int y = j - ((grid_size-1)/2); y < j + ((grid_size-1)/2); y++) {
+                    if (y < 0) y = 0;
+                    else if (y >= pixels.length) y = pixels.length - 1;
+
+                    for (int x = i - ((grid_size-1)/2); x < i + ((grid_size-1)/2); x++) {
+                        if (x < 0) x = 0;
+                        else if (x >= pixels[0].length) x = pixels[0].length - 1;
+
+                        average += pixels_copy[y][x];
+
+                    }
+
+                }
+                average /= (int)Math.pow(grid_size, 2);
+
+                pixels_copy[j][i] = average;
+
+            }
+        }
+
+        return pixels_copy;
     }
 
     /**
