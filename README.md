@@ -5,7 +5,7 @@ Supports MP4, MOV, PNG, and JPG file types as input.
 
 # The Algorithim
 
-IMAGE PRE-PROCESSING
+## IMAGE PRE-PROCESSING
 1) Receive an image
 2) Decolorize the image
 	- process the entire image as black and white into an int[row][column] then fetching values from that two dimensional array
@@ -21,14 +21,12 @@ IMAGE PRE-PROCESSING
    by taking the pixel immediately above and below or immediately left and right and finding their delta(b) and dividing it by 2 and that's it. For edge corners use the center pixel 
    itself in placement of the missing pixel. 
 
-===========ADDITIONAL PREPROCESSING NOTES===========
+## ADDITIONAL PREPROCESSING NOTES
 
 It actually may be more benficial to keep the image colorized because in some cases the program will fail 
 to see contrast between two objects because they have the same brightness but are two completely different
 colors. Hence creating a three dimensional array int[row][column][R, G, B] and doing steps 3- but for each
 element of [R, G, B]. Issue is this should increase the program's resource usage noticably.
-
-====================================================
 
 
 OUTLINING
