@@ -16,8 +16,10 @@ public class Renderer {
 
     public Renderer() throws IOException {
 
-        File file = new File("C:\\Users\\Alex Kranias\\Desktop\\fsf.jpg");
+        File file = new File("C:\\Users\\Alex Kranias\\Pictures\\DEMO_SKETCHIT.JPG");
         BufferedImage frame = ImageIO.read(file);
+
+        frame = resize(frame, 1000, 1000);
 
         renderFrame(frame);
 
@@ -43,7 +45,7 @@ public class Renderer {
                 double[] rgb_standardized = {rgb[0] / 255.0, rgb[0] / 255.0, rgb[0] / 255.0};
 
                 //Add Contrast
-                double CONSTRAST_CONSTANT = 1;
+                double CONSTRAST_CONSTANT = 1.5;
                 rgb_standardized[0] = Math.pow(rgb_standardized[0], CONSTRAST_CONSTANT);
                 rgb_standardized[1] = Math.pow(rgb_standardized[1], CONSTRAST_CONSTANT);
                 rgb_standardized[2] = Math.pow(rgb_standardized[2], CONSTRAST_CONSTANT);
@@ -54,7 +56,7 @@ public class Renderer {
                 rgb[2] = (int)(rgb_standardized[2] * 255);
 
                 //only set to one value since all RGB values are the same
-                imagePixels[i][j] = rgb[0];
+                imagePixels[j][i] = rgb[0];
 
                 //System.out.println("Red: " + rgb[0] + "  Green: " + rgb[1] + "  Blue: " + rgb[2]);
                 //frame.setRGB(i, j, toARGB(255, rgb));
@@ -62,11 +64,74 @@ public class Renderer {
             }
         }
 
+        imagePixels = blur(imagePixels, 3);
+
+        int[][][] derivatives = getDerivativeBrightness(imagePixels);
+
+        for (int j = 0; j < imagePixels.length; j++) {
+            for (int i = 0; i < imagePixels[0].length; i++) {
+                if (derivatives[j][i][0] >= 20 || derivatives[j][i][1] >= 20) imagePixels[j][i] = 0;
+                else imagePixels[j][i] = 255;
+            }
+        }
+
+        for (int j = 0; j < imagePixels.length; j++) {
+            for (int i = 0; i < imagePixels[0].length; i++) {
+                frame.setRGB(i, j, toARGB(255, imagePixels[j][i]));
+            }
+        }
+
+        frame = resize(frame, 2000, 2000);
+
         App.display(frame);
 
     }
 
-    //grid size can only be an odd number
+    /**
+     * Returns the derivative brightness values in the x and y direction for every pixel in an image.
+     * @param pixels The black and white RGB values of every pixel in an image
+     * @return A 3-dimensional array where the first two arrays represent each pixel in an image and the third array is composed of two values: the 1st element is d(brightness)/dy and the 2nd element is d(brightness)/dx
+     */
+    private int[][][] getDerivativeBrightness(int[][] pixels) {
+
+        int db_dy, db_dx;
+        int[][][] derivatives = new int[pixels.length][pixels[0].length][2];
+
+        for (int j = 0; j < pixels.length; j++) {
+            for (int i = 0; i < pixels[0].length; i++) {
+
+                int top, bottom, left, right; //values of pixels above, below, and to the sides of the center pixel
+
+                if (j == 0) top = pixels[j][i];
+                else top = pixels[j-1][i];
+                if (j == pixels.length - 1) bottom = pixels[j][i];
+                else bottom = pixels[j+1][i];
+                if (i == 0) left = pixels[j][i];
+                else left = pixels[j][i-1];
+                if (i == pixels[0].length-1) right = pixels[j][i];
+                else right = pixels[j][i+1];
+
+                db_dy = top - bottom;
+                db_dx = right - left;
+
+                derivatives[j][i][0] = db_dy;
+                derivatives[j][i][1] = db_dx;
+
+                //System.out.print(derivatives[j][i][0] + "," + derivatives[j][i][1] + "\t\t\t");
+            }
+            System.out.println("\n");
+        }
+        return derivatives;
+    }
+
+    /**
+     * The following method takes a 2-dimensional array of integers that represents the black and white
+     * RGB value of every pixel in an image and this method applies a guassian blur by taking the average
+     * rgb value of a n x n grid around each pixel and assigning that value to the center pixel.
+     * @param pixels The black and white RGB values of every pixel in an image
+     * @param grid_size The side-length number of pixels that compose the pixel grid surrounding each pixel being blurred. The greater this value the more blurred the image is.
+     * @return The black and white RGB values of every pixel in the blurred image.
+     */
     private static int[][] blur(int[][] pixels, int grid_size) {
 
         //make sure grid size is not even and not nonesense (must be odd so that middle pixel is in center
@@ -86,24 +151,33 @@ public class Renderer {
             for (int i = 0; i < pixels[0].length; i++) {
 
                 int average = 0;
-                for (int y = j - ((grid_size-1)/2); y < j + ((grid_size-1)/2); y++) {
-                    if (y < 0) y = 0;
-                    else if (y >= pixels.length) y = pixels.length - 1;
+                int count = 0;
+                for (int y = j - ((grid_size-1)/2); y <= j + ((grid_size-1)/2); y++) {
 
-                    for (int x = i - ((grid_size-1)/2); x < i + ((grid_size-1)/2); x++) {
-                        if (x < 0) x = 0;
-                        else if (x >= pixels[0].length) x = pixels[0].length - 1;
+                    int y_cut = y;
 
-                        average += pixels_copy[y][x];
+                    if (y < 0) y_cut = 0;
+                    else if (y >= pixels.length) y_cut = pixels.length - 1;
+
+                    for (int x = i - ((grid_size-1)/2); x <= i + ((grid_size-1)/2); x++) {
+
+                        int x_cut = x;
+
+                        if (x < 0) x_cut = 0;
+                        else if (x >= pixels[0].length) x_cut = pixels[0].length - 1;
+
+                        average += pixels_copy[y_cut][x_cut];
+                        count++;
 
                     }
 
                 }
-                average /= (int)Math.pow(grid_size, 2);
+                average /= count;
 
                 pixels_copy[j][i] = average;
 
             }
+
         }
 
         return pixels_copy;
@@ -127,8 +201,14 @@ public class Renderer {
      * @return The int RGB value that the red, green, and blue values should be set to for the pixel's grayscale equivalent color.
      */
     private static int RGBtoGrayscale(int[] rgb) {
+        return (int)((.5 * rgb[0]) + (.9 * rgb[1]) + (0 * rgb[2]));
+    }
+/*
+    private static int RGBtoGrayscale(int[] rgb) {
         return (int)((0.3 * rgb[0]) + (0.59 * rgb[1]) + (0.11 * rgb[2]));
     }
+
+ */
 
     private static int toARGB(int alpha, int[] rgb) {
 
@@ -141,6 +221,26 @@ public class Renderer {
         argb += rgb[1];
         argb = argb << 8;
         argb += rgb[2];
+
+        return argb;
+        /*
+        The << symbol is for BIT SHIFTING,
+        it makes it so the RGB data is a single sequence of bits but it shifts each int.
+        So it does this => aaaaaaaarrrrrrrrggggggggbbbbbbbb where each letter corresponds to where the bits will go.
+         */
+    }
+
+    private static int toARGB(int alpha, int grayscale) {
+
+        int argb = 0;
+
+        argb += alpha;
+        argb = argb << 8;
+        argb += grayscale;
+        argb = argb << 8;
+        argb += grayscale;
+        argb = argb << 8;
+        argb += grayscale;
 
         return argb;
         /*
@@ -166,6 +266,24 @@ public class Renderer {
         it makes it so the RGB data is a single dequence of bits but it shifts each int.
         So it does this => aaaaaaaarrrrrrrrggggggggbbbbbbbb where each letter corresponds to where the bits will go.
          */
+    }
+
+    /**
+     * Found @ https://stackoverflow.com/questions/9417356/bufferedimage-resize
+     * @param img
+     * @param newW
+     * @param newH
+     * @return
+     */
+    public static BufferedImage resize(BufferedImage img, int newW, int newH) {
+        Image tmp = img.getScaledInstance(newW, newH, Image.SCALE_FAST);
+        BufferedImage dimg = new BufferedImage(newW, newH, BufferedImage.TYPE_INT_ARGB);
+
+        Graphics2D g2d = dimg.createGraphics();
+        g2d.drawImage(tmp, 0, 0, null);
+        g2d.dispose();
+
+        return dimg;
     }
 
 }
