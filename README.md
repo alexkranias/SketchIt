@@ -5,7 +5,7 @@ Supports MP4, MOV, PNG, and JPG file types as input.
 
 # The Algorithim
 
-## IMAGE PRE-PROCESSING
+### IMAGE PRE-PROCESSING
 1) Receive an image
 2) Decolorize the image
 	- process the entire image as black and white into an int[row][column] then fetching values from that two dimensional array
@@ -21,15 +21,7 @@ Supports MP4, MOV, PNG, and JPG file types as input.
    by taking the pixel immediately above and below or immediately left and right and finding their delta(b) and dividing it by 2 and that's it. For edge corners use the center pixel 
    itself in placement of the missing pixel. 
 
-## ADDITIONAL PREPROCESSING NOTES
-
-It actually may be more benficial to keep the image colorized because in some cases the program will fail 
-to see contrast between two objects because they have the same brightness but are two completely different
-colors. Hence creating a three dimensional array int[row][column][R, G, B] and doing steps 3- but for each
-element of [R, G, B]. Issue is this should increase the program's resource usage noticably.
-
-
-OUTLINING
+### OUTLINING
 7) Create a blank BufferImage with the user-selected background color that is the exact aspect ratio of the original image.
 8) So a line is really like a contrast boundary point where very suddenly there is a large dip in brightness in the x or y direction. So the image should simply look at the db/dx and db/dy values 
    and where there is a very sudden spike it starts at that line and finds a dy/dx value that makes b remain close to constant with the origin being at that originally discovered point, then the 
@@ -38,6 +30,13 @@ OUTLINING
 9) This should be done by dividing the image into a n x m grid. First parsing through each grid column by randomly selecting a pixel column within each of the n grid columns, and each time a point 
    is found that matches the characteristics described in step 6 then it generates a line. This process is repreated by parsing through each grid row and randomly selecting a pixel row within each 
    grid.
+
+## ADDITIONAL PREPROCESSING NOTES
+
+It actually may be more benficial to keep the image colorized because in some cases the program will fail 
+to see contrast between two objects because they have the same brightness but are two completely different
+colors. Hence creating a three dimensional array int[row][column][R, G, B] and doing steps 3- but for each
+element of [R, G, B]. Issue is this should increase the program's resource usage noticably.
    
 # What is a Line?
 - has an unprecise start and end
