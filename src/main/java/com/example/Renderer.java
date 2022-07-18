@@ -14,76 +14,367 @@ import static java.awt.image.BufferedImage.TYPE_INT_ARGB;
 
 public class Renderer {
 
+    //========================================CLASS CONSTANTS/VARIABLES=============================================
+
+    static public enum RENDER_COLOR_TYPE {Color, BW};
+    /* Color = original image colors unaltered, BW = renders the image as a Black and White image (removes all color)
+
+    This effects how the algorithm determines the contrast between two pixels. By making the image in black and white,
+    the only form of contrast detection available to the algorithm is the difference in brightness between two pixels;
+    however, by rendering the image in color, the algorithim compares both the color and brightness differences between
+    two pixels. */
+    static private RENDER_COLOR_TYPE COLOR_TYPE = RENDER_COLOR_TYPE.Color; //default is BW
+    static private double CONTRAST_CONSTANT = 1;
+
+    static public double[] INIT_IMAGE_RESCALE_FACTORS = {1.0, 0.9, 0.75, 0.5, 0.25, 0.125, 0.0625}; //used to resize image before line render to improve render efficiency, these are the available rescale options. Show in a drop down menu.
+    static private double INIT_IMAGE_RESCALE_FACTOR = INIT_IMAGE_RESCALE_FACTORS[6]; //default, used to resize image before line render to improve render efficiency
+
+    static private int DERIVATIVE_BOUNDARY_INDICATOR = 10;
+
+    static private BufferedImage CANVAS; //the canvas the render will be sketched on to
+
+    //===============================================================================================================
+
+    /**
+     * Default constructor used for testing purposes only. Renders a demo image on my personal computer.
+     * @throws IOException
+     */
     public Renderer() throws IOException {
 
         File file = new File("C:\\Users\\Alex Kranias\\Pictures\\DEMO_SKETCHIT.JPG");
         BufferedImage frame = ImageIO.read(file);
 
-        frame = resize(frame, 1000, 1000);
+        frame = resize(frame, 2000, 2000);
 
-        renderFrame(frame);
+        renderFrame(frame, RENDER_COLOR_TYPE.BW);
 
     }
 
-    public void renderFrame(BufferedImage frame) throws IOException {
+    public Renderer(String file_address, RENDER_COLOR_TYPE render_color_type, int init_image_rescale_factor_index, int derivative_boundary_indicator) throws IOException {
 
-        int[][] imagePixels = new int[frame.getHeight()][frame.getWidth()];
+        File file = new File(file_address);
+        BufferedImage frame = ImageIO.read(file);
 
-        for (int j = 0; j < imagePixels.length; j++) {
-            for (int i = 0; i < imagePixels[0].length; i++) {
+        int init_image_height = frame.getHeight(), init_image_width = frame.getWidth();
+        int final_image_height = init_image_height, final_image_width = init_image_width;
 
-                //Retrieve Color for Pixel
-                int[] rgb = getRGBfromBufferImage(frame, i, j);
+        //========================ASSIGN CLASS CONSTANTS USER SPECIFIED VALUES========================
 
-                //Grayscale Said Pixel
-                int grayscaled = RGBtoGrayscale(rgb);
-                rgb[0] = grayscaled;
-                rgb[1] = grayscaled;
-                rgb[2] = grayscaled;
+        INIT_IMAGE_RESCALE_FACTOR = INIT_IMAGE_RESCALE_FACTORS[init_image_rescale_factor_index];
+        DERIVATIVE_BOUNDARY_INDICATOR = derivative_boundary_indicator;
 
-                //"Standardize" Value of Pixel so range is 0-1
-                double[] rgb_standardized = {rgb[0] / 255.0, rgb[0] / 255.0, rgb[0] / 255.0};
+        //============================================================================================
 
-                //Add Contrast
-                double CONSTRAST_CONSTANT = 1.5;
-                rgb_standardized[0] = Math.pow(rgb_standardized[0], CONSTRAST_CONSTANT);
-                rgb_standardized[1] = Math.pow(rgb_standardized[1], CONSTRAST_CONSTANT);
-                rgb_standardized[2] = Math.pow(rgb_standardized[2], CONSTRAST_CONSTANT);
+        frame = resize(frame, (int)(init_image_height * INIT_IMAGE_RESCALE_FACTOR), (int)(init_image_height * INIT_IMAGE_RESCALE_FACTOR));
 
-                //Convert Back to Normal Values
-                rgb[0] = (int)(rgb_standardized[0] * 255);
-                rgb[1] = (int)(rgb_standardized[1] * 255);
-                rgb[2] = (int)(rgb_standardized[2] * 255);
+        renderFrame(frame, render_color_type);
 
-                //only set to one value since all RGB values are the same
-                imagePixels[j][i] = rgb[0];
+    }
 
-                //System.out.println("Red: " + rgb[0] + "  Green: " + rgb[1] + "  Blue: " + rgb[2]);
-                //frame.setRGB(i, j, toARGB(255, rgb));
+    public void renderFrame(BufferedImage frame, RENDER_COLOR_TYPE color_type) throws IOException {
 
+        COLOR_TYPE = color_type;
+
+        if (COLOR_TYPE == RENDER_COLOR_TYPE.BW) {
+
+            int[][] imagePixels = new int[frame.getHeight()][frame.getWidth()];
+
+            for (int j = 0; j < imagePixels.length; j++) {
+                for (int i = 0; i < imagePixels[0].length; i++) {
+
+                    //Retrieve Color for Pixel
+                    int[] rgb = getRGBfromBufferImage(frame, i, j);
+
+                    //Grayscale Said Pixel
+                    int grayscaled = RGBtoGrayscale(rgb);
+                    rgb[0] = grayscaled;
+                    rgb[1] = grayscaled;
+                    rgb[2] = grayscaled;
+
+                    //"Standardize" Value of Pixel so range is 0-1
+                    double[] rgb_standardized = {rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0};
+
+                    //Add Contrast
+                    rgb_standardized[0] = Math.pow(rgb_standardized[0], CONTRAST_CONSTANT);
+                    rgb_standardized[1] = Math.pow(rgb_standardized[1], CONTRAST_CONSTANT);
+                    rgb_standardized[2] = Math.pow(rgb_standardized[2], CONTRAST_CONSTANT);
+
+                    //Convert Back to Normal Values
+                    rgb[0] = (int) (rgb_standardized[0] * 255);
+                    rgb[1] = (int) (rgb_standardized[1] * 255);
+                    rgb[2] = (int) (rgb_standardized[2] * 255);
+
+                    //only set to one value since all RGB values are the same
+                    imagePixels[j][i] = rgb[0];
+
+                    //System.out.println("Red: " + rgb[0] + "  Green: " + rgb[1] + "  Blue: " + rgb[2]);
+                    //frame.setRGB(i, j, toARGB(255, rgb));
+
+                }
             }
+
+            imagePixels = blur(imagePixels, 3);
+
+            int[][][] derivatives = getDerivativeBrightness(imagePixels);
+
+            for (int j = 0; j < imagePixels.length; j++) {
+                for (int i = 0; i < imagePixels[0].length; i++) {
+                    if ((derivatives[j][i][0] >= DERIVATIVE_BOUNDARY_INDICATOR || derivatives[j][i][1] >= DERIVATIVE_BOUNDARY_INDICATOR) || (imagePixels[j][i] < 40)) imagePixels[j][i] = 0;
+                    else imagePixels[j][i] = 255;
+                }
+            }
+
+            for (int j = 0; j < imagePixels.length; j++) {
+                for (int i = 0; i < imagePixels[0].length; i++) {
+                    frame.setRGB(i, j, toARGB(255, imagePixels[j][i]));
+                }
+            }
+
         }
+        else if (COLOR_TYPE == RENDER_COLOR_TYPE.Color) {
 
-        imagePixels = blur(imagePixels, 3);
+            int[][][] imagePixels = new int[frame.getHeight()][frame.getWidth()][3]; //technically, if I bitshift like what's done in the Color class I could make the RGB value a single int instead of needing 3 seperate elements for each color and that would likely save memory at the possible expensive of computing speed?
 
-        int[][][] derivatives = getDerivativeBrightness(imagePixels);
+            for (int j = 0; j < imagePixels.length; j++) {
+                for (int i = 0; i < imagePixels[0].length; i++) {
 
-        for (int j = 0; j < imagePixels.length; j++) {
-            for (int i = 0; i < imagePixels[0].length; i++) {
-                if (derivatives[j][i][0] >= 20 || derivatives[j][i][1] >= 20) imagePixels[j][i] = 0;
-                else imagePixels[j][i] = 255;
+                    //Retrieve Color for Pixel
+                    int[] rgb = getRGBfromBufferImage(frame, i, j);
+
+                    //"Standardize" Value of Pixel so range is 0-1
+                    double[] rgb_standardized = {rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0};
+
+                    //Add Contrast
+                    rgb_standardized[0] = Math.pow(rgb_standardized[0], CONTRAST_CONSTANT);
+                    rgb_standardized[1] = Math.pow(rgb_standardized[1], CONTRAST_CONSTANT);
+                    rgb_standardized[2] = Math.pow(rgb_standardized[2], CONTRAST_CONSTANT);
+
+                    //Convert Back to Normal Values
+                    rgb[0] = (int) (rgb_standardized[0] * 255 );
+                    rgb[1] = (int) (rgb_standardized[1] * 255);
+                    rgb[2] = (int) (rgb_standardized[2] * 255);
+
+                    //give each pixel it's respective RGB values
+                    imagePixels[j][i][0] = rgb[0];
+                    imagePixels[j][i][1] = rgb[1];
+                    imagePixels[j][i][2] = rgb[2];
+
+                    //System.out.println("Red: " + rgb[0] + "  Green: " + rgb[1] + "  Blue: " + rgb[2]);
+                    //frame.setRGB(i, j, toARGB(255, rgb));
+
+                }
             }
-        }
 
-        for (int j = 0; j < imagePixels.length; j++) {
-            for (int i = 0; i < imagePixels[0].length; i++) {
-                frame.setRGB(i, j, toARGB(255, imagePixels[j][i]));
+            imagePixels = blur(imagePixels, 5);
+
+            int[][][][] derivatives = getDerivativeBrightness(imagePixels);
+
+            for (int j = 0; j < imagePixels.length; j++) {
+                for (int i = 0; i < imagePixels[0].length; i++) {
+                    double y_derivative = Math.sqrt(Math.pow(derivatives[j][i][0][0], 2) + Math.pow(derivatives[j][i][0][1], 2) + Math.pow(derivatives[j][i][0][2], 2));
+                    double x_derivative = Math.sqrt(Math.pow(derivatives[j][i][1][0], 2) + Math.pow(derivatives[j][i][1][1], 2) + Math.pow(derivatives[j][i][1][2], 2));
+
+                    if (y_derivative >= DERIVATIVE_BOUNDARY_INDICATOR || x_derivative >= DERIVATIVE_BOUNDARY_INDICATOR) {
+                        imagePixels[j][i][0] = 0;
+                        imagePixels[j][i][1] = 0;
+                        imagePixels[j][i][2] = 0;
+                    }
+                    else {
+                        imagePixels[j][i][0] = 255;
+                        imagePixels[j][i][1] = 255;
+                        imagePixels[j][i][2] = 255;
+                    }
+                }
             }
+
+
+            for (int j = 0; j < imagePixels.length; j++) {
+                for (int i = 0; i < imagePixels[0].length; i++) {
+                    frame.setRGB(i, j, toARGB(255, imagePixels[j][i]));
+                }
+            }
+
         }
 
         frame = resize(frame, 2000, 2000);
 
+        //saveAsJPG(frame, "C:\\Users\\Alex Kranias\\Pictures\\TEST.jpg");
+
         App.display(frame);
+
+    }
+
+    /**
+     *
+     * @param frame
+     * @param color_type
+     * @param line_density The relative frequency at which a line will be attempted to be made. Has a range from 1, being the least dense, to 10, being the most dense.
+     * @throws IOException
+     */
+    public void renderFrame(BufferedImage frame, RENDER_COLOR_TYPE color_type, int line_density) throws IOException {
+
+        CANVAS = new BufferedImage(frame.getWidth(), frame.getHeight(), frame.getType());
+
+        COLOR_TYPE = color_type;
+
+        if (COLOR_TYPE == RENDER_COLOR_TYPE.BW) {
+
+            int[][] imagePixels = new int[frame.getHeight()][frame.getWidth()];
+
+            for (int j = 0; j < imagePixels.length; j++) {
+                for (int i = 0; i < imagePixels[0].length; i++) {
+
+                    //Retrieve Color for Pixel
+                    int[] rgb = getRGBfromBufferImage(frame, i, j);
+
+                    //Grayscale Said Pixel
+                    int grayscaled = RGBtoGrayscale(rgb);
+                    rgb[0] = grayscaled;
+                    rgb[1] = grayscaled;
+                    rgb[2] = grayscaled;
+
+                    //"Standardize" Value of Pixel so range is 0-1
+                    double[] rgb_standardized = {rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0};
+
+                    //Add Contrast
+                    rgb_standardized[0] = Math.pow(rgb_standardized[0], CONTRAST_CONSTANT);
+                    rgb_standardized[1] = Math.pow(rgb_standardized[1], CONTRAST_CONSTANT);
+                    rgb_standardized[2] = Math.pow(rgb_standardized[2], CONTRAST_CONSTANT);
+
+                    //Convert Back to Normal Values
+                    rgb[0] = (int) (rgb_standardized[0] * 255);
+                    rgb[1] = (int) (rgb_standardized[1] * 255);
+                    rgb[2] = (int) (rgb_standardized[2] * 255);
+
+                    //only set to one value since all RGB values are the same
+                    imagePixels[j][i] = rgb[0];
+
+                    //System.out.println("Red: " + rgb[0] + "  Green: " + rgb[1] + "  Blue: " + rgb[2]);
+                    //frame.setRGB(i, j, toARGB(255, rgb));
+
+                }
+            }
+
+            imagePixels = blur(imagePixels, 1);
+
+            int[][][] derivatives = getDerivativeBrightness(imagePixels);
+
+            for (int j = 0; j < imagePixels.length; j++) {
+                for (int i = 0; i < imagePixels[0].length; i++) {
+                    if (derivatives[j][i][0] >= DERIVATIVE_BOUNDARY_INDICATOR || derivatives[j][i][1] >= DERIVATIVE_BOUNDARY_INDICATOR) {
+                        drawOutline(i, j, frame, derivatives);
+                    }
+                }
+            }
+
+            for (int j = 0; j < imagePixels.length; j++) {
+                for (int i = 0; i < imagePixels[0].length; i++) {
+                    frame.setRGB(i, j, toARGB(255, imagePixels[j][i]));
+                }
+            }
+
+        }
+        else if (COLOR_TYPE == RENDER_COLOR_TYPE.Color) {
+
+            int[][][] imagePixels = new int[frame.getHeight()][frame.getWidth()][3]; //technically, if I bitshift like what's done in the Color class I could make the RGB value a single int instead of needing 3 seperate elements for each color and that would likely save memory at the possible expensive of computing speed?
+
+            for (int j = 0; j < imagePixels.length; j++) {
+                for (int i = 0; i < imagePixels[0].length; i++) {
+
+                    //Retrieve Color for Pixel
+                    int[] rgb = getRGBfromBufferImage(frame, i, j);
+
+                    //"Standardize" Value of Pixel so range is 0-1
+                    double[] rgb_standardized = {rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0};
+
+                    //Add Contrast
+                    rgb_standardized[0] = Math.pow(rgb_standardized[0], CONTRAST_CONSTANT);
+                    rgb_standardized[1] = Math.pow(rgb_standardized[1], CONTRAST_CONSTANT);
+                    rgb_standardized[2] = Math.pow(rgb_standardized[2], CONTRAST_CONSTANT);
+
+                    //Convert Back to Normal Values
+                    rgb[0] = (int) (rgb_standardized[0] * 255 );
+                    rgb[1] = (int) (rgb_standardized[1] * 255);
+                    rgb[2] = (int) (rgb_standardized[2] * 255);
+
+                    //give each pixel it's respective RGB values
+                    imagePixels[j][i][0] = rgb[0];
+                    imagePixels[j][i][1] = rgb[1];
+                    imagePixels[j][i][2] = rgb[2];
+
+                    //System.out.println("Red: " + rgb[0] + "  Green: " + rgb[1] + "  Blue: " + rgb[2]);
+                    //frame.setRGB(i, j, toARGB(255, rgb));
+
+                }
+            }
+
+            imagePixels = blur(imagePixels, 5);
+
+            int[][][][] derivatives = getDerivativeBrightness(imagePixels);
+
+            for (int j = 0; j < imagePixels.length; j++) {
+                for (int i = 0; i < imagePixels[0].length; i++) {
+                    double y_derivative = Math.sqrt(Math.pow(derivatives[j][i][0][0], 2) + Math.pow(derivatives[j][i][0][1], 2) + Math.pow(derivatives[j][i][0][2], 2));
+                    double x_derivative = Math.sqrt(Math.pow(derivatives[j][i][1][0], 2) + Math.pow(derivatives[j][i][1][1], 2) + Math.pow(derivatives[j][i][1][2], 2));
+
+                    if (y_derivative >= DERIVATIVE_BOUNDARY_INDICATOR || x_derivative >= DERIVATIVE_BOUNDARY_INDICATOR) {
+                        //drawOutline(i, j, frame, derivatives);
+                    }
+                    else {
+                    }
+                }
+            }
+
+
+            for (int j = 0; j < imagePixels.length; j++) {
+                for (int i = 0; i < imagePixels[0].length; i++) {
+                    frame.setRGB(i, j, toARGB(255, imagePixels[j][i]));
+                }
+            }
+
+        }
+
+        //CANVAS = resize(CANVAS, 2000, 2000);
+
+        //App.display(CANVAS);
+
+    }
+
+    private void drawOutline(int i, int j, BufferedImage image, int[][][] derivatives) {
+
+        double LINE_SENSITIVITY = 0.001;
+
+        int[] start_point = {0, 0}, end_point = {0, 0}, center = {i, j};
+
+        double db_dy = derivatives[i][j][0], db_dx = derivatives[i][j][1];
+        double dy_dx = db_dx / db_dy; //m, in i = mj + c
+        double c = i - (dy_dx * j);
+
+        //find start point
+        int k = i, z = j;
+        while ((k >= 0 && k < image.getHeight()) && (z >= 0 && z < image.getWidth()) && (Math.abs(derivatives[k][z][0] - derivatives[i][j][0]) < LINE_SENSITIVITY && Math.abs(derivatives[k][z][1] - derivatives[i][j][1]) < LINE_SENSITIVITY)) {
+            k--;//make sure k and z stay in bounds of image frame
+            z = (int) ((dy_dx * k) + c);
+        }
+        start_point[0] = k;
+        start_point[1] = z;
+
+        //find end point
+        k = i;
+        z = j;
+        while ((k >= 0 && k < image.getHeight()) && (z >= 0 && z < image.getWidth()) && (Math.abs(derivatives[k][z][0] - derivatives[i][j][0]) < LINE_SENSITIVITY && Math.abs(derivatives[k][z][1] - derivatives[i][j][1]) < LINE_SENSITIVITY)) {
+            k++;//make sure k and z stay in bounds of image frame
+            z = (int) ((dy_dx * k) + c);
+        }
+        end_point[0] = k;
+        end_point[1] = z;
+
+        System.out.println("start: (" + start_point[0] + ", " + start_point[1] + ")");
+        System.out.println("end: (" + end_point[0] + ", " + end_point[1] + ")\n");
+
+        image.getGraphics().drawLine(start_point[0], start_point[1], end_point[0], end_point[1]); //change this to an arc later so there is concavity
+
+        App.display(image);
 
     }
 
@@ -122,6 +413,54 @@ public class Renderer {
             System.out.println("\n");
         }
         return derivatives;
+    }
+
+    /**
+     * Returns the derivative brightness values in the x and y direction for every pixel in an image.
+     * @param pixels The R, G, and B values of every pixel in an image
+     * @return A 4-dimensional array where the first two arrays represent each pixel in an image and the third array is composed of two values: the 1st array is a change in R, G, and B for a change in y and the 2nd element is a change in R, G, and B for a change in x
+     */
+    private int[][][][] getDerivativeBrightness(int[][][] pixels) {
+
+        int[] dRGB_dy, dRGB_dx;
+        int[][][][] derivatives = new int[pixels.length][pixels[0].length][2][3];
+
+        for (int j = 0; j < pixels.length; j++) {
+            for (int i = 0; i < pixels[0].length; i++) {
+
+                int[] top, bottom, left, right; //values of pixels above, below, and to the sides of the center pixel
+
+                if (j == 0) top = pixels[j][i];
+                else top = pixels[j-1][i];
+                if (j == pixels.length - 1) bottom = pixels[j][i];
+                else bottom = pixels[j+1][i];
+                if (i == 0) left = pixels[j][i];
+                else left = pixels[j][i-1];
+                if (i == pixels[0].length-1) right = pixels[j][i];
+                else right = pixels[j][i+1];
+
+                dRGB_dy = getDifferenceRGB(top, bottom);
+                dRGB_dx = getDifferenceRGB(right, left);
+
+                derivatives[j][i][0] = dRGB_dy;
+                derivatives[j][i][1] = dRGB_dx;
+
+                //System.out.print(derivatives[j][i][0] + "," + derivatives[j][i][1] + "\t\t\t");
+            }
+            //System.out.println("\n");
+        }
+        return derivatives;
+    }
+
+    /**
+     * Outputs the "difference" in RGB values between two pixels by using the distance formula in 3 dimensions
+     * @param pixel_1 The R, G, and B value of a pixel
+     * @param pixel_2 The R, G, and B value of a pixel
+     * @return The calculated difference between R, G, and B values of pixel_1 and pixel_2
+     */
+    private static int[] getDifferenceRGB(int[] pixel_1, int[] pixel_2) {
+        int[] RGB = {pixel_1[0] - pixel_2[0], pixel_1[1] - pixel_2[1], pixel_1[2] - pixel_2[2]};
+        return RGB;
     }
 
     /**
@@ -173,6 +512,71 @@ public class Renderer {
 
                 }
                 average /= count;
+
+                pixels_copy[j][i] = average;
+
+            }
+
+        }
+
+        return pixels_copy;
+    }
+
+    /**
+     * The following method takes a 3-dimensional array of integers that contains
+     * R, G, and B values of every pixel in an image and this method applies a guassian blur by taking the average
+     * rgb value of a n x n grid around each pixel and assigning that value to the center pixel.
+     * @param pixels The RGB values of every pixel in an image
+     * @param grid_size The side-length number of pixels that compose the pixel grid surrounding each pixel being blurred. The greater this value the more blurred the image is.
+     * @return The black and white RGB values of every pixel in the blurred image.
+     */
+    private static int[][][] blur(int[][][] pixels, int grid_size) {
+
+        //make sure grid size is not even and not nonesense (must be odd so that middle pixel is in center
+        if (grid_size <= 0) grid_size = 1;
+        else if (grid_size % 2 == 0) grid_size += 1;
+
+        //create a copy
+        int[][][] pixels_copy = new int[pixels.length][pixels[0].length][3];
+        for (int j = 0; j < pixels.length; j++) {
+            for (int i = 0; i < pixels[0].length; i++) {
+                pixels_copy[j][i][0] = pixels[j][i][0];
+                pixels_copy[j][i][1] = pixels[j][i][1];
+                pixels_copy[j][i][2] = pixels[j][i][2];
+            }
+        }
+
+        //blur
+        for (int j = 0; j < pixels.length; j++) {
+            for (int i = 0; i < pixels[0].length; i++) {
+
+                int[] average = {0, 0 ,0};
+                int count = 0;
+                for (int y = j - ((grid_size-1)/2); y <= j + ((grid_size-1)/2); y++) {
+
+                    int y_cut = y;
+
+                    if (y < 0) y_cut = 0;
+                    else if (y >= pixels.length) y_cut = pixels.length - 1;
+
+                    for (int x = i - ((grid_size-1)/2); x <= i + ((grid_size-1)/2); x++) {
+
+                        int x_cut = x;
+
+                        if (x < 0) x_cut = 0;
+                        else if (x >= pixels[0].length) x_cut = pixels[0].length - 1;
+
+                        average[0] += pixels_copy[y_cut][x_cut][0];
+                        average[1] += pixels_copy[y_cut][x_cut][1];
+                        average[2] += pixels_copy[y_cut][x_cut][2];
+                        count++;
+
+                    }
+
+                }
+                average[0] /= count;
+                average[1] /= count;
+                average[2] /= count;
 
                 pixels_copy[j][i] = average;
 
