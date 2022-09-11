@@ -42,11 +42,11 @@ public class Renderer {
 
         frame = resize(frame, 2000, 2000);
 
-        //renderFrame(frame, RENDER_COLOR_TYPE.BW);
+        renderFrame(frame, RENDER_COLOR_TYPE.BW);
 
         String videoAddress = "E:\\Videos\\Restlessness.mp4";
         String exportFolderAddress = "C:\\temp";
-        renderFrame(videoAddress, RENDER_COLOR_TYPE.BW, exportFolderAddress);
+        //renderFrame(videoAddress, RENDER_COLOR_TYPE.BW, exportFolderAddress);
 
 
     }
@@ -117,13 +117,14 @@ public class Renderer {
                 }
             }
 
-            imagePixels = blur(imagePixels, 3);
+            imagePixels = blur(imagePixels, 13);
 
             int[][][] derivatives = getDerivativeBrightness(imagePixels);
 
             for (int j = 0; j < imagePixels.length; j++) {
                 for (int i = 0; i < imagePixels[0].length; i++) {
-                    if ((derivatives[j][i][0] >= DERIVATIVE_BOUNDARY_INDICATOR || derivatives[j][i][1] >= DERIVATIVE_BOUNDARY_INDICATOR) || (imagePixels[j][i] < 40)) imagePixels[j][i] = 0;
+                    //if ((derivatives[j][i][0] >= DERIVATIVE_BOUNDARY_INDICATOR || derivatives[j][i][1] >= DERIVATIVE_BOUNDARY_INDICATOR) || (imagePixels[j][i] < 40)) imagePixels[j][i] = 0;
+                    if ((derivatives[j][i][0] >= DERIVATIVE_BOUNDARY_INDICATOR || derivatives[j][i][1] >= DERIVATIVE_BOUNDARY_INDICATOR)) imagePixels[j][i] = 0;
                     else imagePixels[j][i] = 255;
                 }
             }
@@ -200,13 +201,13 @@ public class Renderer {
 
         }
 
-        frame = resize(frame, 2000, 2000);
+        frame = resize(frame, 1000, 1000);
 
         //saveAsJPG(frame, "C:\\Users\\Alex Kranias\\Pictures\\TEST.jpg");
 
         App.display(frame);
 
-        renderFrame(frame, RENDER_COLOR_TYPE.BW, 0);
+        //renderFrame(frame, RENDER_COLOR_TYPE.BW, 0);
 
     }
 
