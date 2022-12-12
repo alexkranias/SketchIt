@@ -5,3 +5,6 @@ Created in Java 8.
 Currently supports PNG, and JPG file types as input.
 
 Upcoming: will add support for MP4 and MOV file types.
+
+INSTRUCTIONS TO RUN SOFTWARE:
+Run the App.java file.
