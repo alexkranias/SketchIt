@@ -18,16 +18,22 @@ public class Renderer_this_one_is_weird {
     however, by rendering the image in color, the algorithim compares both the color and brightness differences between
     two pixels. */
     static private RENDER_COLOR_TYPE COLOR_TYPE = RENDER_COLOR_TYPE.Color; //default is BW
-    static private double CONTRAST_CONSTANT = 1;
+    static private double CONTRAST_CONSTANT = 1.2;
 
     static public double[] INIT_IMAGE_RESCALE_FACTORS = {1.0, 0.9, 0.75, 0.5, 0.25, 0.125, 0.0625}; //used to resize image before line render to improve render efficiency, these are the available rescale options. Show in a drop down menu.
     static private double INIT_IMAGE_RESCALE_FACTOR = INIT_IMAGE_RESCALE_FACTORS[6]; //default, used to resize image before line render to improve render efficiency
 
-    static private int DERIVATIVE_BOUNDARY_INDICATOR = 10;
+    static private int DERIVATIVE_BOUNDARY_INDICATOR = 20;
 
     static private BufferedImage CANVAS; //the canvas the render will be sketched on to
 
     //===============================================================================================================
+
+    public static void main(String[] args) throws IOException {
+        for (int i = 0; i < 60; i++) {
+            Renderer_this_one_is_weird r = new Renderer_this_one_is_weird();
+        }
+    }
 
     /**
      * Default constructor used for testing purposes only. Renders a demo image on my personal computer.
@@ -35,10 +41,14 @@ public class Renderer_this_one_is_weird {
      */
     public Renderer_this_one_is_weird() throws IOException {
 
-        File file = new File("C:\\Users\\Alex Kranias\\Pictures\\DEMO_SKETCHIT.JPG");
+        File file = new File("C:\\Users\\Alex Kranias\\Downloads\\IMG_5276.png");
+        //C:\Users\Alex Kranias\Pictures\CASIO\Ponce 9-4-22
+        //C:\Users\Alex Kranias\Downloads\IMG_5276.png
+        //C:\Users\Alex Kranias\Pictures\DEMO_SKETCHIT.JPG
+        //C:\Users\Alex Kranias\Pictures\CASIO\Ponce 9-4-22\ponce3.jpg
         BufferedImage frame = ImageIO.read(file);
 
-        frame = resize(frame, 2000, 2000);
+        frame = resize(frame, 4000, 5000);
 
         renderFrame(frame, RENDER_COLOR_TYPE.BW);
 
@@ -108,7 +118,7 @@ public class Renderer_this_one_is_weird {
                 }
             }
 
-            imagePixels = blur(imagePixels, 3);
+            imagePixels = blur(imagePixels, 1);
 
             int[][][] derivatives = getDerivativeBrightness(imagePixels);
 
@@ -160,7 +170,7 @@ public class Renderer_this_one_is_weird {
                 }
             }
 
-            imagePixels = blur(imagePixels, 11);
+            imagePixels = blur(imagePixels, 3);
 
             int[][][][] derivatives = getDerivativeBrightness(imagePixels);
 
@@ -191,11 +201,11 @@ public class Renderer_this_one_is_weird {
 
         }
 
-        frame = resize(frame, 2000, 2000);
+        frame = resize(frame, 2000, 2500);
 
         //saveAsJPG(frame, "C:\\Users\\Alex Kranias\\Pictures\\TEST.jpg");
 
-        App.display(frame);
+        //App.display(frame);
 
         renderFrame(frame, RENDER_COLOR_TYPE.BW, 0);
 
@@ -210,7 +220,7 @@ public class Renderer_this_one_is_weird {
      */
     public void renderFrame(BufferedImage frame, RENDER_COLOR_TYPE color_type, int line_density) throws IOException {
 
-        CANVAS = new BufferedImage(frame.getWidth(), frame.getHeight(), frame.getType());
+        CANVAS = new BufferedImage(frame.getWidth(), frame.getHeight(), 5);
         for (int j = 0; j < frame.getHeight(); j++) {
             for (int i = 0; i < frame.getWidth(); i++) {
                 int[] white_rgb = {0, 0, 0};
@@ -258,23 +268,23 @@ public class Renderer_this_one_is_weird {
                 }
             }
 
-            imagePixels = blur(imagePixels, 3);
+            imagePixels = blur(imagePixels,3);
 
-            System.out.println("TEST");
+            //System.out.println("TEST");
 
             int[][][] derivatives = getDerivativeBrightness(imagePixels);
 
-            for (int j = 0; j < imagePixels.length; j++) {
-                for (int i = 0; i < imagePixels[0].length; i++) {
+            for (int j = 0; j < derivatives.length; j++) {
+                for (int i = 0; i < derivatives[0].length; i++) {
                     if (derivatives[j][i][0] >= DERIVATIVE_BOUNDARY_INDICATOR || derivatives[j][i][1] >= DERIVATIVE_BOUNDARY_INDICATOR) {
-                        System.out.println("TEST");
+                        //System.out.println("TEST");
                         drawOutline(i, j, frame, derivatives);
                     }
                 }
             }
 
-            for (int j = 0; j < imagePixels.length; j++) {
-                for (int i = 0; i < imagePixels[0].length; i++) {
+            for (int j = 0; j < imagePixels.length - 1; j++) {
+                for (int i = 0; i < imagePixels[0].length - 1; i++) {
                     frame.setRGB(i, j, toARGB(255, imagePixels[j][i]));
                 }
             }
@@ -342,22 +352,23 @@ public class Renderer_this_one_is_weird {
 
         //CANVAS = resize(CANVAS, 2000, 2000);
 
-        //App.display(CANVAS);
+        saveAsJPG(CANVAS, "C:\\Users\\Alex Kranias\\Downloads\\" + (int)(Math.random() * 1000 + 123) + ".jpg");
+        App.display(CANVAS);
 
     }
 
     private void drawOutline(int i, int j, BufferedImage image, int[][][] derivatives) {
 
-        double LINE_SENSITIVITY = 1; //very high numbers here yield interesting results
+        double LINE_SENSITIVITY = 100; //very high numbers here yield interesting results
 
         int[] start_point = {0, 0}, end_point = {0, 0}, center = {i, j};
 
-        double db_dy = derivatives[i][j][1], db_dx = derivatives[i][j][0];
+        double db_dy = derivatives[j][i][1], db_dx = derivatives[j][i][0];
         double dy_dx = db_dx / db_dy; //m, in i = mj + c
         dy_dx = -1.0 / dy_dx;
-        double c = j - (dy_dx * i);
+        double c = i - (dy_dx * j);
 
-        System.out.println("TEST");
+        //System.out.println("TEST");
 
         //find start point
         int k = i, z = j;
@@ -378,14 +389,14 @@ public class Renderer_this_one_is_weird {
         end_point[0] = z;
         end_point[1] = k;
 
-        System.out.println("start: (" + start_point[0] + ", " + start_point[1] + ")");
-        System.out.println("end: (" + end_point[0] + ", " + end_point[1] + ")\n");
+        //System.out.println("start: (" + start_point[0] + ", " + start_point[1] + ")");
+        //System.out.println("end: (" + end_point[0] + ", " + end_point[1] + ")\n");
 
         double line_length = Math.sqrt(Math.pow(end_point[1] - start_point[1], 2) + Math.pow(end_point[0] - start_point[0], 2));
 
-        if (line_length > 20) CANVAS.getGraphics().drawLine(start_point[0], start_point[1], end_point[0], end_point[1]); //change this to an arc later so there is concavity
+        if (Math.random() < 1 && line_length > 10) CANVAS.getGraphics().drawLine(start_point[0], start_point[1], end_point[0], end_point[1]); //change this to an arc later so there is concavity
 
-        App.display(CANVAS);
+        //App.display(CANVAS);
 
     }
 
@@ -421,7 +432,7 @@ public class Renderer_this_one_is_weird {
 
                 //System.out.print(derivatives[j][i][0] + "," + derivatives[j][i][1] + "\t\t\t");
             }
-            System.out.println("\n");
+            //System.out.println("\n");
         }
         return derivatives;
     }
@@ -606,7 +617,7 @@ public class Renderer_this_one_is_weird {
      */
     private static void saveAsJPG(BufferedImage img, String address) throws IOException {
         File outputfile = new File(address);
-        ImageIO.write(img, "jpg", outputfile);
+        ImageIO.write(img, "JPG", outputfile);
     }
 
     /**

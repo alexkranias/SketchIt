@@ -3,6 +3,7 @@ package com.example;
 import javafx.application.Application;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.embed.swing.SwingFXUtils;
 import javafx.event.EventType;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -13,6 +14,8 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Slider;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.image.PixelWriter;
+import javafx.scene.image.WritableImage;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.Paint;
@@ -22,12 +25,15 @@ import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.nio.Buffer;
 
 import javafx.util.StringConverter;
 import sun.font.FontFamily;
@@ -52,11 +58,20 @@ public class App extends Application {
     private static JFrame WINDOW;
     private static JLabel IMAGE_PREVIEW;
 
-    static ImageView imgPreview;
+    static ImageView imgPreview = new ImageView();
     static StackPane inner = new StackPane();
 
+    static final double[] DOWN_RES_ARRAY = {0.1, 0.2, 0.5, 1};
+    static final double[] FINAL_RES_ARRAY = {0.1, 0.35, 0.65, 1, 1.5};
+
+    //RENDERER PARAMETERS
+    static BufferedImage RENDERED_IMAGE;
+    static BufferedImage ORIGINAL_IMAGE;
+    static double CONTRAST;
+    static int BLUR, DETAIL, DOWNSCALE_RESOLUTION, FINAL_RESOLUTION;;
+
     @Override
-    public void start(Stage window) throws Exception {
+    public void start(Stage window) throws Exception, IOException {
 
         window.setTitle("SketchIt");
         window.setMinWidth(1180);
@@ -110,6 +125,7 @@ public class App extends Application {
         sp.getChildren().add(inner);
         inner.setPadding(new Insets(10, 10, 10, 10));
         inner.getChildren().add(new Label("No Photo Selected"));
+        inner.getChildren().add(imgPreview);
         //inner.getChildren().add(imgPreview);
         //new Border(Color.BLACK, BorderStrokeStyle.SOLID, new CornerRadii(0), BorderWidths.DEFAULT)
 
@@ -132,7 +148,6 @@ public class App extends Application {
             configureFileChooser(fileChooser);
             File file = fileChooser.showOpenDialog(window);
             if (file != null) {
-                if (imgPreview != null) inner.getChildren().removeAll(imgPreview);
                 fileAddress = file.getAbsolutePath();
                 currentlySelectedFile.setText(fileAddress.substring(fileAddress.lastIndexOf("\\")+1));
                 try {
@@ -141,7 +156,16 @@ public class App extends Application {
                     double imgWidth = img.getWidth();
                     double aspectRatio = imgWidth / imgHeight;
 
-                    imgPreview = new ImageView(img);
+                    ORIGINAL_IMAGE = ImageIO.read(new File(fileAddress));
+
+                    CONTRAST = 1;
+                    DOWNSCALE_RESOLUTION = 3;
+                    FINAL_RESOLUTION = 3;
+                    DETAIL = 12;
+                    BLUR = 9;
+                    updateRender();
+
+                    imgPreview.setImage(convertToFxImage(ORIGINAL_IMAGE));
 
                     if (aspectRatio > 1.5) {
                         imgPreview.setFitHeight(window.getWidth()*0.5 / aspectRatio);
@@ -150,9 +174,7 @@ public class App extends Application {
                         imgPreview.setFitHeight(window.getHeight()*0.7);
                         imgPreview.setFitWidth(window.getHeight()*0.7 * aspectRatio);
                     }
-
-                    inner.getChildren().add(imgPreview);
-                } catch (FileNotFoundException ex) {
+                } catch (IOException ex) {
                     //File not capatable label
                     ex.printStackTrace();
                 }
@@ -263,8 +285,8 @@ public class App extends Application {
         preres.setLabelFormatter(new StringConverter<Double>() {
             @Override
             public String toString(Double n) {
-                if (n < 0.5) return "1/100";
-                if (n < 1.5) return "1/10";
+                if (n < 0.5) return "1/10";
+                if (n < 1.5) return "1/5";
                 if (n < 2.5) return "1/2";
 
                 return "Original";
@@ -273,9 +295,9 @@ public class App extends Application {
             @Override
             public Double fromString(String s) {
                 switch (s) {
-                    case "1/100":
-                        return 0d;
                     case "1/10":
+                        return 0d;
+                    case "1/5":
                         return 1d;
                     case "1/2":
                         return 2d;
@@ -286,6 +308,14 @@ public class App extends Application {
                 }
             }
         });
+        preres.valueProperty().addListener(((observable, oldValue, newValue) -> {
+            DOWNSCALE_RESOLUTION = (int)preres.getValue();
+            try {
+                updateRender();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }));
         right2.getChildren().add(new VBox(preres_label, preres));
 
 
@@ -332,12 +362,29 @@ public class App extends Application {
                 }
             }
         });
+        res.valueProperty().addListener(((observable, oldValue, newValue) -> {
+            FINAL_RESOLUTION = (int)res.getValue();
+            try {
+                updateRender();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }));
+
         right1.alignmentProperty().setValue(Pos.TOP_CENTER);
         right1.getChildren().add(renderer);
         right1.getChildren().add(new VBox(res_label, res));
 
         Label detail_label = new Label("Detail");
         Slider detail = new Slider(0, 1, 0.5);
+        detail.valueProperty().addListener(((observable, oldValue, newValue) -> {
+            DETAIL = (int)((detail.getValue() * 99) + 1);
+            try {
+                updateRender();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }));
         right1.getChildren().add(new VBox(detail_label, detail));
 
         Text app_settings = new Text("Application Settings");
@@ -374,6 +421,14 @@ public class App extends Application {
                 }
             }
         });
+
+        view_og.valueProperty().addListener(((observable, oldValue, newValue) -> {
+            if (view_og.getValue() == 0) {
+                imgPreview.setImage(convertToFxImage(ORIGINAL_IMAGE));
+            } else if (view_og.getValue() == 1) {
+                imgPreview.setImage(convertToFxImage(RENDERED_IMAGE));
+            }
+        }));
 
         right3.getChildren().add(app_settings);
         right3.getChildren().add(new VBox(v, view_og));
@@ -413,13 +468,20 @@ public class App extends Application {
         window.show();
 
         window.widthProperty().addListener(((observable, oldValue, newValue) -> {
-            updateImgPreview(window);
+            try {
+                updateImgPreview(window);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }));
         window.heightProperty().addListener(((observable, oldValue, newValue) -> {
-            updateImgPreview(window);
+            try {
+                updateImgPreview(window);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }));
 
-        //Renderer renderer = new Renderer();
     }
 
     /**
@@ -444,7 +506,7 @@ public class App extends Application {
         );
     }
 
-    private void updateImgPreview(Stage window) {
+    private void updateImgPreview(Stage window) throws IOException {
         if (imgPreview != null) {
             double aspectRatio = (imgPreview.getImage().getWidth() / imgPreview.getImage().getHeight());
 
@@ -470,4 +532,123 @@ public class App extends Application {
             }
         }
     }
+
+    private void updateImgPreview(Stage window, BufferedImage image) throws FileNotFoundException {
+        //imgPreview.setImage());
+        if (imgPreview != null) {
+            double aspectRatio = (imgPreview.getImage().getWidth() / imgPreview.getImage().getHeight());
+
+            //System.out.println(aspectRatio);
+            if (aspectRatio > 1.5 && imgPreview.getFitHeight() < 0.7*window.getHeight()) {
+                //System.out.println(1);
+                imgPreview.setFitHeight(window.getWidth()*0.45 / aspectRatio);
+                imgPreview.setFitWidth(window.getWidth()*0.45);
+            } else if (aspectRatio <= 1.5 && imgPreview.getFitWidth() < window.getWidth()*0.45) {
+                //System.out.println(2 + "\t" + imgPreview.getFitWidth());
+                imgPreview.setFitHeight(window.getHeight()*0.7);
+                imgPreview.setFitWidth(window.getHeight()*0.7 * aspectRatio);
+            } else {
+                if (aspectRatio > 1.5) {
+                    //System.out.println(3);
+                    imgPreview.setFitHeight(window.getHeight()*0.7);
+                    imgPreview.setFitWidth(window.getHeight()*0.7 * aspectRatio);
+                } else if (aspectRatio <= 1.5) {
+                    //System.out.println(4 + "\t" + imgPreview.getFitWidth());
+                    imgPreview.setFitHeight(window.getWidth()*0.45 / aspectRatio);
+                    imgPreview.setFitWidth(window.getWidth()*0.45);
+                }
+            }
+        }
+    }
+
+    private void updateImgPreview(Stage window, String fileAddress) throws FileNotFoundException {
+        imgPreview.setImage(new Image(new FileInputStream(fileAddress)));
+        if (imgPreview != null) {
+            double aspectRatio = (imgPreview.getImage().getWidth() / imgPreview.getImage().getHeight());
+
+            //System.out.println(aspectRatio);
+            if (aspectRatio > 1.5 && imgPreview.getFitHeight() < 0.7*window.getHeight()) {
+                //System.out.println(1);
+                imgPreview.setFitHeight(window.getWidth()*0.45 / aspectRatio);
+                imgPreview.setFitWidth(window.getWidth()*0.45);
+            } else if (aspectRatio <= 1.5 && imgPreview.getFitWidth() < window.getWidth()*0.45) {
+                //System.out.println(2 + "\t" + imgPreview.getFitWidth());
+                imgPreview.setFitHeight(window.getHeight()*0.7);
+                imgPreview.setFitWidth(window.getHeight()*0.7 * aspectRatio);
+            } else {
+                if (aspectRatio > 1.5) {
+                    //System.out.println(3);
+                    imgPreview.setFitHeight(window.getHeight()*0.7);
+                    imgPreview.setFitWidth(window.getHeight()*0.7 * aspectRatio);
+                } else if (aspectRatio <= 1.5) {
+                    //System.out.println(4 + "\t" + imgPreview.getFitWidth());
+                    imgPreview.setFitHeight(window.getWidth()*0.45 / aspectRatio);
+                    imgPreview.setFitWidth(window.getWidth()*0.45);
+                }
+            }
+        }
+    }
+
+    private void printRenderSettings() {
+        System.out.println("=================================================\nfileAddress: " + fileAddress + "\nCONTRAST: " + CONTRAST + "\nDOWNSCALE_RES: " + DOWN_RES_ARRAY[DOWNSCALE_RESOLUTION] + "\nBLUR: " + BLUR + "\nDETAIL: " + DETAIL + "\nFINAL_RES: " + FINAL_RES_ARRAY[FINAL_RESOLUTION] + "\n=================================================\n");
+    }
+
+    private String oldFileAddress = fileAddress;
+    private static double oldContrast = CONTRAST, oldDetail = DETAIL;
+    private static int oldDownScale = DOWNSCALE_RESOLUTION, oldFinalRes = FINAL_RESOLUTION;
+
+    private void updateRender() throws IOException {
+        if (imgPreview != null) {
+            //only update when values change
+            if (CONTRAST != oldContrast || DETAIL != oldDetail || oldFileAddress.compareTo(fileAddress) != 0 || oldDownScale != DOWNSCALE_RESOLUTION || oldFinalRes != FINAL_RESOLUTION) {
+                printRenderSettings();
+                RENDERED_IMAGE = Renderer.displayRenderFrame(fileAddress, CONTRAST, DOWN_RES_ARRAY[DOWNSCALE_RESOLUTION], BLUR, DETAIL, FINAL_RES_ARRAY[FINAL_RESOLUTION]);
+
+                oldFileAddress = fileAddress;
+                oldContrast = CONTRAST;
+                oldDetail = DETAIL;
+                oldDownScale = DOWNSCALE_RESOLUTION;
+                oldFinalRes = FINAL_RESOLUTION;
+
+                imgPreview.setImage(convertToFxImage(RENDERED_IMAGE));
+            }
+        }
+    }
+
+    private static Image convertToFxImage(BufferedImage image) {
+        WritableImage wr = null;
+        if (image != null) {
+            wr = new WritableImage(image.getWidth(), image.getHeight());
+            PixelWriter pw = wr.getPixelWriter();
+            for (int x = 0; x < image.getWidth(); x++) {
+                for (int y = 0; y < image.getHeight(); y++) {
+                    pw.setArgb(x, y, image.getRGB(x, y));
+                }
+            }
+        }
+
+        return new ImageView(wr).getImage();
+    }
+
+    private static JFrame frame;
+    private static JLabel label;
+    /**
+     * Used in testing to view images
+     * @param image
+     */
+    public static void display(BufferedImage image) {
+        if (frame == null) {
+            frame = new JFrame();
+            frame.setTitle("stained_image");
+            frame.setSize(image.getWidth(), image.getHeight());
+            frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+            label = new JLabel();
+            label.setIcon(new ImageIcon(image));
+            frame.getContentPane().add(label, BorderLayout.CENTER);
+            frame.setLocationRelativeTo(null);
+            frame.pack();
+            frame.setVisible(true);
+        } else label.setIcon(new ImageIcon(image));
+    }
+
 }

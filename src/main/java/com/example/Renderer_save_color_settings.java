@@ -8,9 +8,13 @@ import java.io.IOException;
 
 public class Renderer_save_color_settings {
 
+    public static void main(String[] args) throws IOException {
+        Renderer_save_color_settings r = new Renderer_save_color_settings();
+    }
+
     public Renderer_save_color_settings() throws IOException {
 
-        File file = new File("C:\\Users\\Alex Kranias\\Pictures\\DEMO_SKETCHIT.JPG");
+        File file = new File("C:\\Users\\Alex Kranias\\Downloads\\IMG_5274.png");
         BufferedImage frame = ImageIO.read(file);
 
         frame = resize(frame, 1000, 1000);
@@ -161,7 +165,7 @@ public class Renderer_save_color_settings {
 
         }
 
-        frame = resize(frame, 2000, 2000);
+        frame = resize(frame, 1000, 1000);
 
         App.display(frame);
 

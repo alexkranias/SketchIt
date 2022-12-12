@@ -23,9 +23,13 @@ public class Renderer_7_17_22_3_55pm {
     static public double[] INIT_IMAGE_RESCALE_FACTORS = {1.0, 0.9, 0.75, 0.5, 0.25, 0.125, 0.0625}; //used to resize image before line render to improve render efficiency, these are the available rescale options. Show in a drop down menu.
     static private double INIT_IMAGE_RESCALE_FACTOR = INIT_IMAGE_RESCALE_FACTORS[6]; //default, used to resize image before line render to improve render efficiency
 
-    static private int DERIVATIVE_BOUNDARY_INDICATOR = 10;
+    static private int DERIVATIVE_BOUNDARY_INDICATOR = 7;
 
     static private BufferedImage CANVAS; //the canvas the render will be sketched on to
+
+    public static void main(String[] args) throws IOException {
+        Renderer_7_17_22_3_55pm r = new Renderer_7_17_22_3_55pm();
+    }
 
     //===============================================================================================================
 
@@ -35,12 +39,12 @@ public class Renderer_7_17_22_3_55pm {
      */
     public Renderer_7_17_22_3_55pm() throws IOException {
 
-        File file = new File("C:\\Users\\Alex Kranias\\Pictures\\DEMO_SKETCHIT.JPG");
+        File file = new File("C:\\Users\\Alex Kranias\\Downloads\\IMG_5274.png");
         BufferedImage frame = ImageIO.read(file);
 
         frame = resize(frame, 2000, 2000);
 
-        renderFrame(frame, RENDER_COLOR_TYPE.BW);
+        renderFrame(frame, RENDER_COLOR_TYPE.BW, 1);
 
     }
 
@@ -107,14 +111,16 @@ public class Renderer_7_17_22_3_55pm {
                 }
             }
 
-            imagePixels = blur(imagePixels, 3);
+            imagePixels = blur(imagePixels, 5);
 
             int[][][] derivatives = getDerivativeBrightness(imagePixels);
 
-            for (int j = 0; j < imagePixels.length; j++) {
-                for (int i = 0; i < imagePixels[0].length; i++) {
-                    if ((derivatives[j][i][0] >= DERIVATIVE_BOUNDARY_INDICATOR || derivatives[j][i][1] >= DERIVATIVE_BOUNDARY_INDICATOR) || (imagePixels[j][i] < 40)) imagePixels[j][i] = 0;
-                    else imagePixels[j][i] = 255;
+            for (int j = 0; j < derivatives.length - 1; j++) {
+                for (int i = 0; i < derivatives[0].length - 1; i++) {
+                    if (derivatives[j][i][0] >= DERIVATIVE_BOUNDARY_INDICATOR || derivatives[j][i][1] >= DERIVATIVE_BOUNDARY_INDICATOR) {
+                        System.out.println("TEST");
+                        drawOutline(i, j, frame, derivatives);
+                    }
                 }
             }
 
@@ -159,9 +165,11 @@ public class Renderer_7_17_22_3_55pm {
                 }
             }
 
-            imagePixels = blur(imagePixels, 5);
+            imagePixels = blur(imagePixels, 15);
 
             int[][][][] derivatives = getDerivativeBrightness(imagePixels);
+
+
 
             for (int j = 0; j < imagePixels.length; j++) {
                 for (int i = 0; i < imagePixels[0].length; i++) {
@@ -190,9 +198,9 @@ public class Renderer_7_17_22_3_55pm {
 
         }
 
-        frame = resize(frame, 2000, 2000);
+        frame = resize(frame, 800, 1080);
 
-        App.display(frame);
+        //App.display(frame);
 
     }
 
@@ -326,15 +334,15 @@ public class Renderer_7_17_22_3_55pm {
 
         }
 
-        //CANVAS = resize(CANVAS, 2000, 2000);
+        frame = resize(frame, 2000, 2000);
 
-        //App.display(CANVAS);
+        //App.display(frame);
 
     }
 
     private void drawOutline(int i, int j, BufferedImage image, int[][][] derivatives) {
 
-        double LINE_SENSITIVITY = 0.001;
+        double LINE_SENSITIVITY = 0.01;
 
         int[] start_point = {0, 0}, end_point = {0, 0}, center = {i, j};
 
@@ -364,9 +372,9 @@ public class Renderer_7_17_22_3_55pm {
         System.out.println("start: (" + start_point[0] + ", " + start_point[1] + ")");
         System.out.println("end: (" + end_point[0] + ", " + end_point[1] + ")\n");
 
-        image.getGraphics().drawLine(start_point[0], start_point[1], end_point[0], end_point[1]); //change this to an arc later so there is concavity
+        CANVAS.getGraphics().drawLine(start_point[0], start_point[1], end_point[0], end_point[1]); //change this to an arc later so there is concavity
 
-        App.display(image);
+        App.display(CANVAS);
 
     }
 

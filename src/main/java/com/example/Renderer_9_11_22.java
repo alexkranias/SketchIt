@@ -6,7 +6,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 
-public class Renderer_7_16_2022_1_49_PM {
+public class Renderer_9_11_22 {
 
     //========================================CLASS CONSTANTS/VARIABLES=============================================
 
@@ -20,41 +20,62 @@ public class Renderer_7_16_2022_1_49_PM {
     static private RENDER_COLOR_TYPE COLOR_TYPE = RENDER_COLOR_TYPE.Color; //default is BW
     static private double CONTRAST_CONSTANT = 1;
 
-    static public double[] INIT_IMAGE_RESCALE_FACTORS = {0.0625, 0.125, 0.25, 0.5, 0.75, 0.9, 1.0}; //used to resize image before line render to improve render efficiency, these are the available rescale options
+    static public double[] INIT_IMAGE_RESCALE_FACTORS = {1.0, 0.9, 0.75, 0.5, 0.25, 0.125, 0.0625}; //used to resize image before line render to improve render efficiency, these are the available rescale options. Show in a drop down menu.
     static private double INIT_IMAGE_RESCALE_FACTOR = INIT_IMAGE_RESCALE_FACTORS[6]; //default, used to resize image before line render to improve render efficiency
 
+    static private int DERIVATIVE_BOUNDARY_INDICATOR = 10;
+
+    static private BufferedImage CANVAS; //the canvas the render will be sketched on to
+
     //===============================================================================================================
+
+    public static void main(String[] args) throws IOException {
+        Renderer_9_11_22 r = new Renderer_9_11_22();
+    }
 
     /**
      * Default constructor used for testing purposes only. Renders a demo image on my personal computer.
      * @throws IOException
      */
-    public Renderer_7_16_2022_1_49_PM() throws IOException {
+    public Renderer_9_11_22() throws IOException {
 
         File file = new File("C:\\Users\\Alex Kranias\\Pictures\\DEMO_SKETCHIT.JPG");
         BufferedImage frame = ImageIO.read(file);
 
         frame = resize(frame, 2000, 2000);
 
-        renderFrame(frame, RENDER_COLOR_TYPE.Color);
+        //renderFrame(frame, RENDER_COLOR_TYPE.BW);
+
+        String videoAddress = "C:\\Users\\Alex Kranias\\Videos\\Captures\\mc1.mp4";
+        String exportFolderAddress = "C:\\temp";
+        renderFrame(videoAddress, RENDER_COLOR_TYPE.BW, exportFolderAddress);
+
 
     }
 
-    public Renderer_7_16_2022_1_49_PM(String file_address, RENDER_COLOR_TYPE render_color_type, double init_image_rescale_factor) throws IOException {
+    /*
+    public Renderer(String file_address, RENDER_COLOR_TYPE render_color_type, int init_image_rescale_factor_index, int derivative_boundary_indicator) throws IOException {
 
         File file = new File(file_address);
         BufferedImage frame = ImageIO.read(file);
+        //frame = new BufferedImage(0, 0, 5);
 
         int init_image_height = frame.getHeight(), init_image_width = frame.getWidth();
         int final_image_height = init_image_height, final_image_width = init_image_width;
 
-        double scale_factor = 1;
+        //========================ASSIGN CLASS CONSTANTS USER SPECIFIED VALUES========================
+
+        INIT_IMAGE_RESCALE_FACTOR = INIT_IMAGE_RESCALE_FACTORS[init_image_rescale_factor_index];
+        DERIVATIVE_BOUNDARY_INDICATOR = derivative_boundary_indicator;
+
+        //============================================================================================
 
         frame = resize(frame, (int)(init_image_height * INIT_IMAGE_RESCALE_FACTOR), (int)(init_image_height * INIT_IMAGE_RESCALE_FACTOR));
 
-        renderFrame(frame, RENDER_COLOR_TYPE.Color);
+        renderFrame(frame, render_color_type);
 
     }
+     */
 
     public void renderFrame(BufferedImage frame, RENDER_COLOR_TYPE color_type) throws IOException {
 
@@ -98,13 +119,14 @@ public class Renderer_7_16_2022_1_49_PM {
                 }
             }
 
-            imagePixels = blur(imagePixels, 1);
+            imagePixels = blur(imagePixels, 13);
 
             int[][][] derivatives = getDerivativeBrightness(imagePixels);
 
             for (int j = 0; j < imagePixels.length; j++) {
                 for (int i = 0; i < imagePixels[0].length; i++) {
-                    if (derivatives[j][i][0] >= 20 || derivatives[j][i][1] >= 20) imagePixels[j][i] = 0;
+                    //if ((derivatives[j][i][0] >= DERIVATIVE_BOUNDARY_INDICATOR || derivatives[j][i][1] >= DERIVATIVE_BOUNDARY_INDICATOR) || (imagePixels[j][i] < 40)) imagePixels[j][i] = 0;
+                    if ((derivatives[j][i][0] >= DERIVATIVE_BOUNDARY_INDICATOR || derivatives[j][i][1] >= DERIVATIVE_BOUNDARY_INDICATOR)) imagePixels[j][i] = 0;
                     else imagePixels[j][i] = 255;
                 }
             }
@@ -112,6 +134,152 @@ public class Renderer_7_16_2022_1_49_PM {
             for (int j = 0; j < imagePixels.length; j++) {
                 for (int i = 0; i < imagePixels[0].length; i++) {
                     frame.setRGB(i, j, toARGB(255, imagePixels[j][i]));
+                }
+            }
+
+        }
+        else if (COLOR_TYPE == RENDER_COLOR_TYPE.Color) {
+
+            int[][][] imagePixels = new int[frame.getHeight()][frame.getWidth()][3]; //technically, if I bitshift like what's done in the Color class I could make the RGB value a single int instead of needing 3 seperate elements for each color and that would likely save memory at the possible expensive of computing speed?
+
+            for (int j = 0; j < imagePixels.length; j++) {
+                for (int i = 0; i < imagePixels[0].length; i++) {
+
+                    //Retrieve Color for Pixel
+                    int[] rgb = getRGBfromBufferImage(frame, i, j);
+
+                    //"Standardize" Value of Pixel so range is 0-1
+                    double[] rgb_standardized = {rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0};
+
+                    //Add Contrast
+                    rgb_standardized[0] = Math.pow(rgb_standardized[0], CONTRAST_CONSTANT);
+                    rgb_standardized[1] = Math.pow(rgb_standardized[1], CONTRAST_CONSTANT);
+                    rgb_standardized[2] = Math.pow(rgb_standardized[2], CONTRAST_CONSTANT);
+
+                    //Convert Back to Normal Values
+                    rgb[0] = (int) (rgb_standardized[0] * 255 );
+                    rgb[1] = (int) (rgb_standardized[1] * 255);
+                    rgb[2] = (int) (rgb_standardized[2] * 255);
+
+                    //give each pixel it's respective RGB values
+                    imagePixels[j][i][0] = rgb[0];
+                    imagePixels[j][i][1] = rgb[1];
+                    imagePixels[j][i][2] = rgb[2];
+
+                    //System.out.println("Red: " + rgb[0] + "  Green: " + rgb[1] + "  Blue: " + rgb[2]);
+                    //frame.setRGB(i, j, toARGB(255, rgb));
+
+                }
+            }
+
+            imagePixels = blur(imagePixels, 11);
+
+            int[][][][] derivatives = getDerivativeBrightness(imagePixels);
+
+            for (int j = 0; j < imagePixels.length; j++) {
+                for (int i = 0; i < imagePixels[0].length; i++) {
+                    double y_derivative = Math.sqrt(Math.pow(derivatives[j][i][0][0], 2) + Math.pow(derivatives[j][i][0][1], 2) + Math.pow(derivatives[j][i][0][2], 2));
+                    double x_derivative = Math.sqrt(Math.pow(derivatives[j][i][1][0], 2) + Math.pow(derivatives[j][i][1][1], 2) + Math.pow(derivatives[j][i][1][2], 2));
+
+                    if (y_derivative >= DERIVATIVE_BOUNDARY_INDICATOR || x_derivative >= DERIVATIVE_BOUNDARY_INDICATOR) {
+                        imagePixels[j][i][0] = 0;
+                        imagePixels[j][i][1] = 0;
+                        imagePixels[j][i][2] = 0;
+                    }
+                    else {
+                        imagePixels[j][i][0] = 255;
+                        imagePixels[j][i][1] = 255;
+                        imagePixels[j][i][2] = 255;
+                    }
+                }
+            }
+
+
+            for (int j = 0; j < imagePixels.length; j++) {
+                for (int i = 0; i < imagePixels[0].length; i++) {
+                    frame.setRGB(i, j, toARGB(255, imagePixels[j][i]));
+                }
+            }
+
+        }
+
+        frame = resize(frame, 1000, 1000);
+
+        //saveAsJPG(frame, "C:\\Users\\Alex Kranias\\Pictures\\TEST.jpg");
+
+        //App.display(frame);
+
+        //renderFrame(frame, RENDER_COLOR_TYPE.BW, 0);
+
+    }
+
+    /**
+     *
+     * @param frame
+     * @param color_type
+     * @param line_density The relative frequency at which a line will be attempted to be made. Has a range from 1, being the least dense, to 10, being the most dense.
+     * @throws IOException
+     */
+    public void renderFrame(BufferedImage frame, RENDER_COLOR_TYPE color_type, int line_density) throws IOException {
+
+        CANVAS = new BufferedImage(frame.getWidth(), frame.getHeight(), 5);
+        for (int j = 0; j < frame.getHeight(); j++) {
+            for (int i = 0; i < frame.getWidth(); i++) {
+                int[] white_rgb = {0, 0, 0};
+                CANVAS.setRGB(i, j, toARGB(255, white_rgb));
+            }
+        }
+
+        COLOR_TYPE = color_type;
+
+        if (COLOR_TYPE == RENDER_COLOR_TYPE.BW) {
+
+            int[][] imagePixels = new int[frame.getHeight()][frame.getWidth()];
+
+            for (int j = 0; j < imagePixels.length; j++) {
+                for (int i = 0; i < imagePixels[0].length; i++) {
+
+                    //Retrieve Color for Pixel
+                    int[] rgb = getRGBfromBufferImage(frame, i, j);
+
+                    //Grayscale Said Pixel
+                    int grayscaled = RGBtoGrayscale(rgb);
+                    rgb[0] = grayscaled;
+                    rgb[1] = grayscaled;
+                    rgb[2] = grayscaled;
+
+                    //"Standardize" Value of Pixel so range is 0-1
+                    double[] rgb_standardized = {rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0};
+
+                    //Add Contrast
+                    rgb_standardized[0] = Math.pow(rgb_standardized[0], CONTRAST_CONSTANT);
+                    rgb_standardized[1] = Math.pow(rgb_standardized[1], CONTRAST_CONSTANT);
+                    rgb_standardized[2] = Math.pow(rgb_standardized[2], CONTRAST_CONSTANT);
+
+                    //Convert Back to Normal Values
+                    rgb[0] = (int) (rgb_standardized[0] * 255);
+                    rgb[1] = (int) (rgb_standardized[1] * 255);
+                    rgb[2] = (int) (rgb_standardized[2] * 255);
+
+                    //only set to one value since all RGB values are the same
+                    imagePixels[j][i] = rgb[0];
+
+                    //System.out.println("Red: " + rgb[0] + "  Green: " + rgb[1] + "  Blue: " + rgb[2]);
+                    //frame.setRGB(i, j, toARGB(255, rgb));
+
+                }
+            }
+
+            imagePixels = blur(imagePixels, 3);
+
+            System.out.println("TEST");
+
+            int[][][] derivatives = getDerivativeBrightness(imagePixels);
+
+            for (int j = 0; j < imagePixels.length; j++) {
+                for (int i = 0; i < imagePixels[0].length; i++) {
+                    CANVAS.setRGB(i, j, frame.getRGB(i, j));
+                        //drawOutline(i, j, frame, derivatives, (int)(Math.pow(Math.random(), 5)*100 + 10));
                 }
             }
 
@@ -159,15 +327,10 @@ public class Renderer_7_16_2022_1_49_PM {
                     double y_derivative = Math.sqrt(Math.pow(derivatives[j][i][0][0], 2) + Math.pow(derivatives[j][i][0][1], 2) + Math.pow(derivatives[j][i][0][2], 2));
                     double x_derivative = Math.sqrt(Math.pow(derivatives[j][i][1][0], 2) + Math.pow(derivatives[j][i][1][1], 2) + Math.pow(derivatives[j][i][1][2], 2));
 
-                    if (y_derivative >= 10 || x_derivative >= 10) {
-                        imagePixels[j][i][0] = 0;
-                        imagePixels[j][i][1] = 0;
-                        imagePixels[j][i][2] = 0;
+                    if (y_derivative >= DERIVATIVE_BOUNDARY_INDICATOR || x_derivative >= DERIVATIVE_BOUNDARY_INDICATOR) {
+                        //drawOutline(i, j, frame, derivatives);
                     }
                     else {
-                        imagePixels[j][i][0] = 255;
-                        imagePixels[j][i][1] = 255;
-                        imagePixels[j][i][2] = 255;
                     }
                 }
             }
@@ -181,9 +344,183 @@ public class Renderer_7_16_2022_1_49_PM {
 
         }
 
-        frame = resize(frame, 2000, 2000);
+        saveAsJPG(CANVAS, "E:\\temp\\Photessera\\RawFrames\\testw.jpg");
 
-        //App.display(frame);
+        //CANVAS = resize(CANVAS, 2000, 2000);
+
+        //App.display(CANVAS);
+
+    }
+
+
+
+
+
+
+
+
+
+
+    //FOR VIDEOS
+    public void renderFrame(String videoAddress, RENDER_COLOR_TYPE color_type, String exportFileAddress) throws IOException {
+
+        File file = new File(videoAddress);
+        
+        if (file.getAbsolutePath().substring(file.getAbsolutePath().indexOf(".") + 1).equals("mp4") || file.getAbsolutePath().substring(file.getAbsolutePath().indexOf(".") + 1).equals("MOV")) {
+
+            int numOfFrames = VideoFrameConversion.generateFramesFromVideo(videoAddress, App.RAW_FRAME_DIRECTORY_ADDRESS);
+            for (int i = 0; i < numOfFrames; i++) {
+                renderFrame(App.RAW_FRAME_DIRECTORY_ADDRESS + "\\frame-" + i + ".jpg", RENDER_COLOR_TYPE.BW, App.RENDERED_FRAME_DIRECTORY_ADDRESS + "\\frame-" + i + ".jpg");
+            }
+            //VideoFrameConversion.convertJPGtoMovie(exportFolderAddress + "\\" + outputFileName + ".mp4", RENDERED_FRAMES_FOLDER_ADDRESS, VideoFrameConversion.getFrameRate(videoAddress), numOfFrames);
+            //App.alert("Rendered Video Exported to\n" + exportFolderAddress);
+
+        } else {
+
+            BufferedImage frame = ImageIO.read(file);
+            CANVAS = new BufferedImage(frame.getWidth(), frame.getHeight(), 5);
+            for (int j = 0; j < frame.getHeight(); j++) {
+                for (int i = 0; i < frame.getWidth(); i++) {
+                    int[] white_rgb = {0, 0, 0};
+                    CANVAS.setRGB(i, j, toARGB(255, white_rgb));
+                }
+            }
+
+            COLOR_TYPE = color_type;
+
+            if (COLOR_TYPE == RENDER_COLOR_TYPE.BW) {
+
+                int[][] imagePixels = new int[frame.getHeight()][frame.getWidth()];
+
+                for (int j = 0; j < imagePixels.length; j++) {
+                    for (int i = 0; i < imagePixels[0].length; i++) {
+
+                        //Retrieve Color for Pixel
+                        int[] rgb = getRGBfromBufferImage(frame, i, j);
+
+                        //Grayscale Said Pixel
+                        int grayscaled = RGBtoGrayscale(rgb);
+                        rgb[0] = grayscaled;
+                        rgb[1] = grayscaled;
+                        rgb[2] = grayscaled;
+
+                        //"Standardize" Value of Pixel so range is 0-1
+                        double[] rgb_standardized = {rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0};
+
+                        //Add Contrast
+                        rgb_standardized[0] = Math.pow(rgb_standardized[0], CONTRAST_CONSTANT);
+                        rgb_standardized[1] = Math.pow(rgb_standardized[1], CONTRAST_CONSTANT);
+                        rgb_standardized[2] = Math.pow(rgb_standardized[2], CONTRAST_CONSTANT);
+
+                        //Convert Back to Normal Values
+                        rgb[0] = (int) (rgb_standardized[0] * 255);
+                        rgb[1] = (int) (rgb_standardized[1] * 255);
+                        rgb[2] = (int) (rgb_standardized[2] * 255);
+
+                        //only set to one value since all RGB values are the same
+                        imagePixels[j][i] = rgb[0];
+
+                        //System.out.println("Red: " + rgb[0] + "  Green: " + rgb[1] + "  Blue: " + rgb[2]);
+                        //frame.setRGB(i, j, toARGB(255, rgb));
+
+                    }
+                }
+
+                imagePixels = blur(imagePixels, 11);
+
+
+                System.out.println("TEST");
+
+                int[][][] derivatives = getDerivativeBrightness(imagePixels);
+
+                for (int j = 0; j < imagePixels.length; j++) {
+                    for (int i = 0; i < imagePixels[0].length; i++) {
+                        if ((derivatives[j][i][0] >= DERIVATIVE_BOUNDARY_INDICATOR || derivatives[j][i][1] >= DERIVATIVE_BOUNDARY_INDICATOR) || (imagePixels[j][i] < 40)) imagePixels[j][i] = 0;
+                        else imagePixels[j][i] = 255;
+                    }
+                }
+
+                for (int j = 0; j < imagePixels.length; j++) {
+                    for (int i = 0; i < imagePixels[0].length; i++) {
+                        CANVAS.setRGB(i, j, toARGB(255, imagePixels[j][i]));
+                    }
+                }
+
+            }
+
+            saveAsJPG(CANVAS, exportFileAddress);
+
+        }
+
+    }
+
+    private void drawOutline(int i, int j, BufferedImage image, int[][][] derivatives) {
+
+        double LINE_SENSITIVITY = 15; //very high numbers here yield interesting results
+
+        int[] start_point = {0, 0}, end_point = {0, 0}, center = {i, j};
+
+        double db_dy = derivatives[i][j][1], db_dx = derivatives[i][j][0];
+        double dy_dx = - db_dx / db_dy; //m, in i = mj + c
+        double c = i - (dy_dx * j);
+
+        System.out.println("TEST");
+
+        //find start point
+        int k = i, z = j;
+        while ((k >= 0 && k < image.getHeight()) && (z >= 0 && z < image.getWidth()) && (Math.abs(derivatives[k][z][0] - derivatives[i][j][0]) < LINE_SENSITIVITY && Math.abs(derivatives[k][z][1] - derivatives[i][j][1]) < LINE_SENSITIVITY)) {
+            k--;//make sure k and z stay in bounds of image frame
+            z = (int) ((dy_dx * k) + c);
+        }
+        start_point[0] = z;
+        start_point[1] = k;
+
+        //find end point
+        k = i;
+        z = j;
+        while ((k >= 0 && k < image.getHeight()) && (z >= 0 && z < image.getWidth()) && (Math.abs(derivatives[k][z][0] - derivatives[i][j][0]) < LINE_SENSITIVITY && Math.abs(derivatives[k][z][1] - derivatives[i][j][1]) < LINE_SENSITIVITY)) {
+            k++;//make sure k and z stay in bounds of image frame
+            z = (int) ((dy_dx * k) + c);
+        }
+        end_point[0] = z;
+        end_point[1] = k;
+
+        System.out.println("start: (" + start_point[0] + ", " + start_point[1] + ")");
+        System.out.println("end: (" + end_point[0] + ", " + end_point[1] + ")\n");
+
+        double line_length = Math.sqrt(Math.pow(end_point[1] - start_point[1], 2) + Math.pow(end_point[0] - start_point[0], 2));
+
+        if (line_length > 50 && Math.abs(dy_dx) < 0.5) CANVAS.getGraphics().drawLine(start_point[0], start_point[1], end_point[0], end_point[1]); //change this to an arc later so there is concavity
+
+        //App.display(CANVAS);
+
+    }
+
+    private void drawOutline(int i, int j, BufferedImage image, int[][][] derivatives, int length) {
+
+        double LINE_SENSITIVITY = 40; //very high numbers here yield interesting results
+
+        int[] start_point = {0, 0}, end_point = {0, 0}, center = {i, j};
+
+        double db_dy = derivatives[i][j][1], db_dx = derivatives[i][j][0];
+        double dy_dx = db_dx / db_dy; //m, in j = mi + c
+        dy_dx = -1.0/dy_dx;
+        double c = j - (dy_dx * i);
+
+        double slope_theta = Math.atan(dy_dx);
+
+        //center point
+        if (Math.sqrt(Math.pow(derivatives[i][j][0], 2) + Math.pow(derivatives[i][j][1], 2)) > LINE_SENSITIVITY) {
+            //find start point
+            start_point[0] = (int) (center[1]-((length/2)*Math.sin(slope_theta)));
+            end_point[0] = (int) (center[1]+((length/2)*Math.sin(slope_theta)));
+            start_point[1] = (int) (center[0]-((length/2)*Math.cos(slope_theta)));
+            end_point[1] = (int) (center[0]+((length/2)*Math.cos(slope_theta)));
+
+            if (Math.random() < 0.02) CANVAS.getGraphics().drawLine(start_point[0], start_point[1], end_point[0], end_point[1]); //change this to an arc later so there is concavity
+
+            //App.display(CANVAS);
+        }
 
     }
 
@@ -404,7 +741,7 @@ public class Renderer_7_16_2022_1_49_PM {
      */
     private static void saveAsJPG(BufferedImage img, String address) throws IOException {
         File outputfile = new File(address);
-        ImageIO.write(img, "jpg", outputfile);
+        ImageIO.write(img, "JPG", outputfile);
     }
 
     /**
